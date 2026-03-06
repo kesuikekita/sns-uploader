@@ -65,13 +65,8 @@ textarea.memo:focus{border-color:#444;}textarea.memo::placeholder{color:var(--mu
 .act-btn.sm{font-size:12px;color:var(--muted);padding:11px;}
 .act-btn.sm.ok{color:#4caf50;border-color:#4caf50;}
 .next-btn{width:100%;padding:14px;margin-top:10px;border-radius:var(--r);border:1.5px solid var(--border);background:transparent;color:var(--muted);font-family:'Noto Sans JP',sans-serif;font-size:14px;cursor:pointer;}
-.folder-setup{margin:12px 18px 0;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px;}
-.folder-setup summary{font-size:12px;color:var(--muted);cursor:pointer;user-select:none;font-weight:700;}
 .fi{width:100%;background:var(--card);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-family:'Noto Sans JP',sans-serif;font-size:12px;padding:10px 12px;outline:none;margin-top:8px;transition:border-color .2s;}
 .fi:focus{border-color:#444;}.fi::placeholder{color:var(--muted);}
-.fi-lbl{font-size:10px;color:var(--muted);margin-top:10px;display:block;}
-.fi-save{width:100%;padding:11px;margin-top:10px;border-radius:10px;border:none;background:var(--gold);color:#000;font-family:'Noto Sans JP',sans-serif;font-size:13px;font-weight:700;cursor:pointer;}
-.fi-note{font-size:10px;color:#4caf50;margin-top:6px;display:none;}
 .hist-hdr{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 14px;border-bottom:1px solid var(--border);background:var(--bg);position:sticky;top:0;z-index:50;}
 .hist-hdr-title{font-size:15px;font-weight:700;}
 .back-btn{background:var(--card);border:1px solid var(--border);color:var(--text);font-size:12px;font-weight:700;font-family:'Noto Sans JP',sans-serif;padding:7px 13px;border-radius:100px;cursor:pointer;}
@@ -161,13 +156,6 @@ textarea.memo:focus{border-color:#444;}textarea.memo::placeholder{color:var(--mu
     <button class="next-btn" onclick="reset()">＋ 次の素材をアップ</button>
   </div>
 
-  <details class="folder-setup" style="margin-top:12px">
-    <summary>⚙️ 設定（初回のみ）</summary>
-    <span class="fi-lbl">🔗 GAS URL</span>
-    <input class="fi" id="gas-url" placeholder="https://script.google.com/macros/s/.../exec">
-    <button class="fi-save" onclick="saveSettings()">保存する</button>
-    <p class="fi-note" id="fi-note">✅ 保存しました</p>
-  </details>
 </div>
 
 <div class="page" id="pg-history">
@@ -247,8 +235,8 @@ function setProgress(pct,msg){
 async function doSubmit(){
   const who=document.getElementById('who').value.trim();
   if(!who){document.getElementById('who-err').style.display='block';document.getElementById('who').scrollIntoView({behavior:'smooth',block:'center'});return;}
-  const gasUrl=localStorage.getItem('gasUrl')||'';
-  if(!gasUrl){alert('⚙️ 設定からGAS URLを入力してください');return;}
+  const gasUrl=localStorage.getItem('gasUrl')||'https://script.google.com/macros/s/AKfycby3QKRHRHPz0d845UoJnPePGvEa_fX3JNrZQrsVfpDgMnGj5FJc51m_BQW2l6GhpuX1/exec';
+  
 
   const memo=document.getElementById('memo').value.trim();
   const storeLabel=store==='nickou'?'ラーメンにっこう本店':'お塩浩太郎 東大前店';
@@ -342,10 +330,6 @@ function reset(){
   dz.querySelector('.dz-ico').textContent='📱';dz.querySelector('.dz-main').textContent='タップして選択';dz.querySelector('.dz-sub').textContent='写真・動画・複数選択OK';
   syncBtn();window.scrollTo({top:0,behavior:'smooth'});
 }
-function saveSettings(){
-  localStorage.setItem('gasUrl',document.getElementById('gas-url').value.trim());
-  const note=document.getElementById('fi-note');note.style.display='block';setTimeout(()=>note.style.display='none',2000);
-}
 function openHist(){
   const list=document.getElementById('hist-body');
   const hist=JSON.parse(localStorage.getItem('h')||'[]');
@@ -355,7 +339,6 @@ function openHist(){
 }
 function closeHist(){document.getElementById('pg-history').classList.remove('on');document.getElementById('pg-upload').classList.add('on');}
 window.addEventListener('DOMContentLoaded',()=>{
-  document.getElementById('gas-url').value=localStorage.getItem('gasUrl')||'';
 });
 </script>
 </body>
