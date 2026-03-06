@@ -262,9 +262,10 @@ async function doSubmit(){
 
     setProgress(65,'Driveにアップロード中...');
 
-    // GASに送信
-    const res=await fetch(gasUrl,{
+    // GASに送信（no-cors方式）
+    await fetch(gasUrl,{
       method:'POST',
+      mode:'no-cors',
       body:JSON.stringify({
         timestamp:iso,store,storeLabel,who,
         tags:tags.join(','),memo,
@@ -272,38 +273,31 @@ async function doSubmit(){
         files:fileData
       })
     });
-    const result=await res.json();
 
     setProgress(100,'完了！');
 
-    if(result.ok){
-      // ローカル履歴保存
-      const rec={id:Date.now(),store,storeLabel,who,tags:[...tags],
-        files:renamedFiles.map(f=>({name:f.renamed})),memo,date,folderUrl:result.folder||''};
-      const hist=JSON.parse(localStorage.getItem('h')||'[]');
-      hist.unshift(rec);localStorage.setItem('h',JSON.stringify(hist.slice(0,30)));
+    // ローカル履歴保存
+    const rec={id:Date.now(),store,storeLabel,who,tags:[...tags],
+      files:renamedFiles.map(f=>({name:f.renamed})),memo,date};
+    const hist=JSON.parse(localStorage.getItem('h')||'[]');
+    hist.unshift(rec);localStorage.setItem('h',JSON.stringify(hist.slice(0,30)));
 
-      // 完了表示
-      const fileRows=renamedFiles.map(f=>`<div style="font-size:12px;color:var(--gold);word-break:break-all;margin-bottom:4px;">📄 ${f.renamed}</div>`).join('');
-      document.getElementById('done-detail').innerHTML=`
-        <div class="drow"><span class="dkey">店舗</span><span class="dval">${storeLabel}</span></div>
-        <div class="drow"><span class="dkey">担当</span><span class="dval">${who}</span></div>
-        <div class="drow"><span class="dkey">タグ</span><span class="dval">${tags.length?tags.join('　'):'（なし）'}</span></div>
-        <div class="drow"><span class="dkey">ファイル</span><span class="dval">${fileRows}</span></div>
-        ${memo?`<div class="drow"><span class="dkey">メモ</span><span class="dval">${memo}</span></div>`:''}
-      `;
-      if(result.folder){document.getElementById('drive-link').href=result.folder;}
-      else{document.getElementById('drive-link').style.display='none';}
-
-      const copyText=`【${storeLabel}】${date}\n担当：${who}\nタグ：${tags.join(' ')||'なし'}\nファイル：${renamedFiles.map(f=>f.renamed).join(', ')}\nメモ：${memo||'なし'}`;
-      document.getElementById('copy-btn').dataset.copy=copyText;
-      document.getElementById('progress-wrap').style.display='none';
-      document.getElementById('done').classList.add('on');
-      document.getElementById('sbtn').style.display='none';
-      document.getElementById('done').scrollIntoView({behavior:'smooth',block:'start'});
-    } else {
-      throw new Error(result.error||'不明なエラー');
-    }
+    // 完了表示
+    const fileRows=renamedFiles.map(f=>`<div style="font-size:12px;color:var(--gold);word-break:break-all;margin-bottom:4px;">📄 ${f.renamed}</div>`).join('');
+    document.getElementById('done-detail').innerHTML=`
+      <div class="drow"><span class="dkey">店舗</span><span class="dval">${storeLabel}</span></div>
+      <div class="drow"><span class="dkey">担当</span><span class="dval">${who}</span></div>
+      <div class="drow"><span class="dkey">タグ</span><span class="dval">${tags.length?tags.join('　'):'（なし）'}</span></div>
+      <div class="drow"><span class="dkey">ファイル</span><span class="dval">${fileRows}</span></div>
+      ${memo?`<div class="drow"><span class="dkey">メモ</span><span class="dval">${memo}</span></div>`:''}
+    `;
+    document.getElementById('drive-link').style.display='none';
+    const copyText=`【${storeLabel}】${date}\n担当：${who}\nタグ：${tags.join(' ')||'なし'}\nファイル：${renamedFiles.map(f=>f.renamed).join(', ')}\nメモ：${memo||'なし'}`;
+    document.getElementById('copy-btn').dataset.copy=copyText;
+    document.getElementById('progress-wrap').style.display='none';
+    document.getElementById('done').classList.add('on');
+    document.getElementById('sbtn').style.display='none';
+    document.getElementById('done').scrollIntoView({behavior:'smooth',block:'start'});
   }catch(err){
     document.getElementById('progress-wrap').style.display='none';
     document.getElementById('sbtn').disabled=false;
