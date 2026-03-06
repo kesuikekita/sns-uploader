@@ -49,6 +49,10 @@ textarea.memo:focus{border-color:#444;}textarea.memo::placeholder{color:var(--mu
 .sub-btn{width:100%;padding:18px;border-radius:var(--r);border:none;font-family:'Noto Sans JP',sans-serif;font-size:15px;font-weight:900;cursor:pointer;transition:opacity .2s,transform .1s;letter-spacing:.5px;}
 .sub-btn:active{transform:scale(.98);}.sub-btn:disabled{opacity:.3;cursor:not-allowed;}
 .sub-btn.g{background:var(--gold);color:#000;}.sub-btn.r{background:var(--red);color:#fff;}.sub-btn.off{background:#222;color:var(--muted);}
+.progress-wrap{padding:16px 18px 0;display:none;}
+.progress-bar{width:100%;height:6px;background:var(--border);border-radius:6px;overflow:hidden;}
+.progress-fill{height:100%;background:var(--gold);border-radius:6px;transition:width .3s ease;width:0%;}
+.progress-msg{font-size:12px;color:var(--muted);text-align:center;margin-top:8px;}
 .done-box{margin:16px 18px 0;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:20px;display:none;}
 .done-box.on{display:block;animation:up .3s ease;}
 @keyframes up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
@@ -61,7 +65,6 @@ textarea.memo:focus{border-color:#444;}textarea.memo::placeholder{color:var(--mu
 .act-btn.sm{font-size:12px;color:var(--muted);padding:11px;}
 .act-btn.sm.ok{color:#4caf50;border-color:#4caf50;}
 .next-btn{width:100%;padding:14px;margin-top:10px;border-radius:var(--r);border:1.5px solid var(--border);background:transparent;color:var(--muted);font-family:'Noto Sans JP',sans-serif;font-size:14px;cursor:pointer;}
-.sending-msg{text-align:center;font-size:12px;color:var(--muted);margin-top:10px;display:none;}
 .folder-setup{margin:12px 18px 0;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px;}
 .folder-setup summary{font-size:12px;color:var(--muted);cursor:pointer;user-select:none;font-weight:700;}
 .fi{width:100%;background:var(--card);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-family:'Noto Sans JP',sans-serif;font-size:12px;padding:10px 12px;outline:none;margin-top:8px;transition:border-color .2s;}
@@ -144,24 +147,25 @@ textarea.memo:focus{border-color:#444;}textarea.memo::placeholder{color:var(--mu
     <button class="sub-btn off" id="sbtn" disabled onclick="doSubmit()">店舗を選択してください</button>
   </div>
 
+  <!-- プログレスバー -->
+  <div class="progress-wrap" id="progress-wrap">
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+    <div class="progress-msg" id="progress-msg">📡 アップロード中...</div>
+  </div>
+
   <div class="done-box" id="done">
-    <div class="done-title">✅ 記録しました！</div>
+    <div class="done-title">✅ アップロード完了！</div>
     <div id="done-detail"></div>
-    <div class="act-btn" style="opacity:.35;cursor:not-allowed;justify-content:center;">🔒 Drive連携は準備中です</div>
-    <button class="act-btn sm" id="copy-btn" onclick="copyRec()">📋 情報をコピー（ファイル名用）</button>
+    <a class="act-btn" id="drive-link" href="#" target="_blank">📂 Driveフォルダを確認</a>
+    <button class="act-btn sm" id="copy-btn" onclick="copyRec()">📋 情報をコピー</button>
     <button class="next-btn" onclick="reset()">＋ 次の素材をアップ</button>
   </div>
-  <div class="sending-msg" id="sending-msg">📡 データを送信中...</div>
 
   <details class="folder-setup" style="margin-top:12px">
     <summary>⚙️ 設定（初回のみ）</summary>
     <span class="fi-lbl">🔗 GAS URL</span>
     <input class="fi" id="gas-url" placeholder="https://script.google.com/macros/s/.../exec">
-    <span class="fi-lbl">📍 にっこう本店 DriveフォルダID</span>
-    <input class="fi" id="fid-n" placeholder="フォルダID">
-    <span class="fi-lbl">📍 お塩浩太郎 DriveフォルダID</span>
-    <input class="fi" id="fid-o" placeholder="フォルダID">
-    <button class="fi-save" onclick="saveFolders()">保存する</button>
+    <button class="fi-save" onclick="saveSettings()">保存する</button>
     <p class="fi-note" id="fi-note">✅ 保存しました</p>
   </details>
 </div>
@@ -211,7 +215,7 @@ function syncBtn(){
   const b=document.getElementById('sbtn');
   if(!store){b.textContent='店舗を選択してください';b.className='sub-btn off';b.disabled=true;}
   else if(!files.length){b.textContent='ファイルを選択してください';b.className='sub-btn off';b.disabled=true;}
-  else{const lbl=store==='nickou'?'にっこう本店':'お塩浩太郎';b.textContent='📤 '+lbl+' に記録する';b.className='sub-btn '+(store==='nickou'?'g':'r');b.disabled=false;}
+  else{const lbl=store==='nickou'?'にっこう本店':'お塩浩太郎';b.textContent='📤 '+lbl+' にアップロード';b.className='sub-btn '+(store==='nickou'?'g':'r');b.disabled=false;}
 }
 function clearWhoErr(){document.getElementById('who-err').style.display='none';}
 function sanitizeName(n){return n.replace(/\s+/g,'_').replace(/[\/\\:*?"<>|]/g,'');}
@@ -224,55 +228,105 @@ function buildFileName(orig,i,who){
   return `${ymd}_${sp}_${tp}_${sanitizeName(who)}_${String(i+1).padStart(2,'0')}.${ext}`;
 }
 
+// ファイルをbase64に変換
+function toBase64(file){
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=()=>res(r.result.split(',')[1]);
+    r.onerror=rej;
+    r.readAsDataURL(file);
+  });
+}
+
+// プログレス更新
+function setProgress(pct,msg){
+  document.getElementById('progress-fill').style.width=pct+'%';
+  document.getElementById('progress-msg').textContent=msg;
+}
+
 async function doSubmit(){
   const who=document.getElementById('who').value.trim();
   if(!who){document.getElementById('who-err').style.display='block';document.getElementById('who').scrollIntoView({behavior:'smooth',block:'center'});return;}
+  const gasUrl=localStorage.getItem('gasUrl')||'';
+  if(!gasUrl){alert('⚙️ 設定からGAS URLを入力してください');return;}
+
   const memo=document.getElementById('memo').value.trim();
   const storeLabel=store==='nickou'?'ラーメンにっこう本店':'お塩浩太郎 東大前店';
   const now=new Date();
   const date=now.toLocaleString('ja-JP',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
   const iso=now.toISOString();
-  const renamedFiles=files.map((f,i)=>({original:f.name,renamed:buildFileName(f.name,i,who)}));
+  const renamedFiles=files.map((f,i)=>({file:f,original:f.name,renamed:buildFileName(f.name,i,who)}));
 
-  // ローカル履歴
-  const rec={id:Date.now(),store,storeLabel,who,tags:[...tags],files:renamedFiles.map(f=>({name:f.renamed,original:f.original})),memo,date};
-  const hist=JSON.parse(localStorage.getItem('h')||'[]');
-  hist.unshift(rec);localStorage.setItem('h',JSON.stringify(hist.slice(0,30)));
+  // UI：送信中
+  document.getElementById('sbtn').disabled=true;
+  document.getElementById('sbtn').textContent='📡 アップロード中...';
+  document.getElementById('progress-wrap').style.display='block';
+  setProgress(10,'ファイルを準備中...');
 
-  // GAS送信（GETパラメータ方式・302回避）
-  const gasUrl=localStorage.getItem('gasUrl')||'';
-  if(gasUrl){
-    document.getElementById('sending-msg').style.display='block';
-    try{
-      const params=new URLSearchParams({
-        action:'record',timestamp:iso,store,storeLabel,who,
-        tags:tags.join(','),
-        files:renamedFiles.map(f=>f.renamed).join(','),
-        memo,fileCount:files.length
-      });
-      await fetch(gasUrl+'?'+params.toString(),{method:'GET',mode:'no-cors'});
-    }catch(e){console.log('GAS送信エラー',e);}
-    document.getElementById('sending-msg').style.display='none';
+  try{
+    // base64変換
+    const fileData=[];
+    for(let i=0;i<renamedFiles.length;i++){
+      setProgress(10+Math.round(i/renamedFiles.length*50), `変換中 ${i+1}/${renamedFiles.length}...`);
+      const b64=await toBase64(renamedFiles[i].file);
+      fileData.push({name:renamedFiles[i].renamed,type:renamedFiles[i].file.type,data:b64});
+    }
+
+    setProgress(65,'Driveにアップロード中...');
+
+    // GASに送信
+    const res=await fetch(gasUrl,{
+      method:'POST',
+      body:JSON.stringify({
+        timestamp:iso,store,storeLabel,who,
+        tags:tags.join(','),memo,
+        fileCount:files.length,
+        files:fileData
+      })
+    });
+    const result=await res.json();
+
+    setProgress(100,'完了！');
+
+    if(result.ok){
+      // ローカル履歴保存
+      const rec={id:Date.now(),store,storeLabel,who,tags:[...tags],
+        files:renamedFiles.map(f=>({name:f.renamed})),memo,date,folderUrl:result.folder||''};
+      const hist=JSON.parse(localStorage.getItem('h')||'[]');
+      hist.unshift(rec);localStorage.setItem('h',JSON.stringify(hist.slice(0,30)));
+
+      // 完了表示
+      const fileRows=renamedFiles.map(f=>`<div style="font-size:12px;color:var(--gold);word-break:break-all;margin-bottom:4px;">📄 ${f.renamed}</div>`).join('');
+      document.getElementById('done-detail').innerHTML=`
+        <div class="drow"><span class="dkey">店舗</span><span class="dval">${storeLabel}</span></div>
+        <div class="drow"><span class="dkey">担当</span><span class="dval">${who}</span></div>
+        <div class="drow"><span class="dkey">タグ</span><span class="dval">${tags.length?tags.join('　'):'（なし）'}</span></div>
+        <div class="drow"><span class="dkey">ファイル</span><span class="dval">${fileRows}</span></div>
+        ${memo?`<div class="drow"><span class="dkey">メモ</span><span class="dval">${memo}</span></div>`:''}
+      `;
+      if(result.folder){document.getElementById('drive-link').href=result.folder;}
+      else{document.getElementById('drive-link').style.display='none';}
+
+      const copyText=`【${storeLabel}】${date}\n担当：${who}\nタグ：${tags.join(' ')||'なし'}\nファイル：${renamedFiles.map(f=>f.renamed).join(', ')}\nメモ：${memo||'なし'}`;
+      document.getElementById('copy-btn').dataset.copy=copyText;
+      document.getElementById('progress-wrap').style.display='none';
+      document.getElementById('done').classList.add('on');
+      document.getElementById('sbtn').style.display='none';
+      document.getElementById('done').scrollIntoView({behavior:'smooth',block:'start'});
+    } else {
+      throw new Error(result.error||'不明なエラー');
+    }
+  }catch(err){
+    document.getElementById('progress-wrap').style.display='none';
+    document.getElementById('sbtn').disabled=false;
+    syncBtn();
+    alert('❌ エラー：'+err.message);
   }
-
-  const fileRows=renamedFiles.map(f=>`<div style="font-size:11px;color:var(--muted);margin-bottom:2px;">元: ${f.original}</div><div style="font-size:13px;color:var(--gold);margin-bottom:8px;word-break:break-all;">→ ${f.renamed}</div>`).join('');
-  document.getElementById('done-detail').innerHTML=`
-    <div class="drow"><span class="dkey">店舗</span><span class="dval">${storeLabel}</span></div>
-    <div class="drow"><span class="dkey">担当</span><span class="dval">${who}</span></div>
-    <div class="drow"><span class="dkey">タグ</span><span class="dval">${tags.length?tags.join('　'):'（なし）'}</span></div>
-    <div class="drow"><span class="dkey">ファイル名</span><span class="dval">${fileRows}</span></div>
-    ${memo?`<div class="drow"><span class="dkey">メモ</span><span class="dval">${memo}</span></div>`:''}
-  `;
-  const copyText=`【${storeLabel}】${date}\n担当：${who}\nタグ：${tags.join(' ')||'なし'}\n\nファイル名（推奨）:\n${renamedFiles.map(f=>f.renamed).join('\n')}\n\nメモ：${memo||'なし'}`;
-  document.getElementById('copy-btn').dataset.copy=copyText;
-  document.getElementById('done').classList.add('on');
-  document.getElementById('sbtn').style.display='none';
-  document.getElementById('done').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 function copyRec(){
   const btn=document.getElementById('copy-btn');
-  navigator.clipboard.writeText(btn.dataset.copy||'').then(()=>{btn.textContent='✅ コピーしました';btn.classList.add('ok');setTimeout(()=>{btn.textContent='📋 情報をコピー（ファイル名用）';btn.classList.remove('ok');},2000);});
+  navigator.clipboard.writeText(btn.dataset.copy||'').then(()=>{btn.textContent='✅ コピーしました';btn.classList.add('ok');setTimeout(()=>{btn.textContent='📋 情報をコピー';btn.classList.remove('ok');},2000);});
 }
 function reset(){
   store=null;tags=[];files=[];
@@ -283,14 +337,13 @@ function reset(){
   document.getElementById('who-err').style.display='none';
   document.getElementById('memo').value='';document.getElementById('thumbs').innerHTML='';
   document.getElementById('done').classList.remove('on');document.getElementById('sbtn').style.display='';
+  document.getElementById('progress-wrap').style.display='none';
   const dz=document.getElementById('dz');
   dz.querySelector('.dz-ico').textContent='📱';dz.querySelector('.dz-main').textContent='タップして選択';dz.querySelector('.dz-sub').textContent='写真・動画・複数選択OK';
   syncBtn();window.scrollTo({top:0,behavior:'smooth'});
 }
-function saveFolders(){
+function saveSettings(){
   localStorage.setItem('gasUrl',document.getElementById('gas-url').value.trim());
-  localStorage.setItem('fn',document.getElementById('fid-n').value.trim());
-  localStorage.setItem('fo',document.getElementById('fid-o').value.trim());
   const note=document.getElementById('fi-note');note.style.display='block';setTimeout(()=>note.style.display='none',2000);
 }
 function openHist(){
@@ -303,8 +356,6 @@ function openHist(){
 function closeHist(){document.getElementById('pg-history').classList.remove('on');document.getElementById('pg-upload').classList.add('on');}
 window.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('gas-url').value=localStorage.getItem('gasUrl')||'';
-  document.getElementById('fid-n').value=localStorage.getItem('fn')||'';
-  document.getElementById('fid-o').value=localStorage.getItem('fo')||'';
 });
 </script>
 </body>
