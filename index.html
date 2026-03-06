@@ -65,8 +65,17 @@ textarea.memo:focus{border-color:#444;}textarea.memo::placeholder{color:var(--mu
 .act-btn.sm{font-size:12px;color:var(--muted);padding:11px;}
 .act-btn.sm.ok{color:#4caf50;border-color:#4caf50;}
 .next-btn{width:100%;padding:14px;margin-top:10px;border-radius:var(--r);border:1.5px solid var(--border);background:transparent;color:var(--muted);font-family:'Noto Sans JP',sans-serif;font-size:14px;cursor:pointer;}
-.fi{width:100%;background:var(--card);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-family:'Noto Sans JP',sans-serif;font-size:12px;padding:10px 12px;outline:none;margin-top:8px;transition:border-color .2s;}
-.fi:focus{border-color:#444;}.fi::placeholder{color:var(--muted);}
+/* ログインバナー */
+.login-banner{margin:16px 18px 0;background:var(--surface);border:1.5px solid var(--gold);border-radius:var(--r);padding:16px;display:none;}
+.login-banner.show{display:block;}
+.login-banner-txt{font-size:13px;margin-bottom:12px;line-height:1.6;}
+.login-google-btn{width:100%;padding:14px;border-radius:var(--r);border:none;background:var(--gold);color:#000;font-family:'Noto Sans JP',sans-serif;font-size:14px;font-weight:900;cursor:pointer;}
+/* ユーザー表示 */
+.user-info{display:none;align-items:center;gap:8px;padding:8px 18px;background:var(--surface);border-bottom:1px solid var(--border);}
+.user-info.show{display:flex;}
+.user-avatar{width:24px;height:24px;border-radius:50%;object-fit:cover;}
+.user-name{font-size:11px;color:var(--muted);}
+.user-logout{margin-left:auto;font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer;text-decoration:underline;}
 .hist-hdr{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 14px;border-bottom:1px solid var(--border);background:var(--bg);position:sticky;top:0;z-index:50;}
 .hist-hdr-title{font-size:15px;font-weight:700;}
 .back-btn{background:var(--card);border:1px solid var(--border);color:var(--text);font-size:12px;font-weight:700;font-family:'Noto Sans JP',sans-serif;padding:7px 13px;border-radius:100px;cursor:pointer;}
@@ -84,6 +93,9 @@ textarea.memo:focus{border-color:#444;}textarea.memo::placeholder{color:var(--mu
 </head>
 <body>
 
+<!-- Google Identity Services -->
+<script src="https://accounts.google.com/gsi/client" async></script>
+
 <div class="page on" id="pg-upload">
   <div class="hdr">
     <div class="hdr-icon">🍜</div>
@@ -92,6 +104,13 @@ textarea.memo:focus{border-color:#444;}textarea.memo::placeholder{color:var(--mu
       <button class="hdr-btn" onclick="openHist()">📋 履歴</button>
       <button class="hdr-btn" onclick="location.href='admin.html'">🔐</button>
     </div>
+  </div>
+
+  <!-- ユーザー情報バー -->
+  <div class="user-info" id="user-info">
+    <img class="user-avatar" id="user-avatar" src="" alt="">
+    <span class="user-name" id="user-name"></span>
+    <button class="user-logout" onclick="doLogout()">ログアウト</button>
   </div>
 
   <div class="sec">
@@ -142,6 +161,12 @@ textarea.memo:focus{border-color:#444;}textarea.memo::placeholder{color:var(--mu
     <button class="sub-btn off" id="sbtn" disabled onclick="doSubmit()">店舗を選択してください</button>
   </div>
 
+  <!-- Googleログインバナー -->
+  <div class="login-banner" id="login-banner">
+    <div class="login-banner-txt">📱 初回のみGoogleログインが必要です。<br>アップロード先のDriveにアクセスします。</div>
+    <button class="login-google-btn" onclick="doLogin()">🔑 Googleでログイン</button>
+  </div>
+
   <!-- プログレスバー -->
   <div class="progress-wrap" id="progress-wrap">
     <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
@@ -151,11 +176,10 @@ textarea.memo:focus{border-color:#444;}textarea.memo::placeholder{color:var(--mu
   <div class="done-box" id="done">
     <div class="done-title">✅ アップロード完了！</div>
     <div id="done-detail"></div>
-    <a class="act-btn" id="drive-link" href="#" target="_blank">📂 Driveフォルダを確認</a>
+    <a class="act-btn" id="drive-link" href="#" target="_blank" style="display:none">📂 Driveフォルダを確認</a>
     <button class="act-btn sm" id="copy-btn" onclick="copyRec()">📋 情報をコピー</button>
     <button class="next-btn" onclick="reset()">＋ 次の素材をアップ</button>
   </div>
-
 </div>
 
 <div class="page" id="pg-history">
@@ -167,10 +191,75 @@ textarea.memo:focus{border-color:#444;}textarea.memo::placeholder{color:var(--mu
 </div>
 
 <script>
-let store=null,tags=[],files=[];
+// ── 設定 ──
+const CLIENT_ID = '14134847265-mnss8osgro8urjop7j7nqidpksl5q728.apps.googleusercontent.com';
+const GAS_URL   = 'https://script.google.com/macros/s/AKfycby3QKRHRHPz0d845UoJnPePGvEa_fX3JNrZQrsVfpDgMnGj5FJc51m_BQW2l6GhpuX1/exec';
+const SHOPS = {
+  nickou: { folderId:'1KGoCuw2yHSPLiptK5Sn3hEmen2EHhyc5', label:'ラーメンにっこう本店' },
+  osio:   { folderId:'1wXTi56UBG2PrVkeCe9CsH_t93c4sKpRh', label:'お塩浩太郎 東大前店' }
+};
 const TAG_PREFIX={'仕込み':'shikomi','メニュー':'menu','カウントダウン':'countdown','店内':'interior','行列':'queue','完売':'sold-out','限定':'limited','スタッフ':'staff','世界展開':'world','その他':'other'};
 const STORE_PREFIX={nickou:'nikkou',osio:'osio'};
 
+let store=null, tags=[], files=[], accessToken=null, tokenClient=null;
+
+// ── Google Identity Services 初期化 ──
+window.addEventListener('load', () => {
+  // 保存済みトークンを確認
+  const saved = localStorage.getItem('gToken');
+  if(saved) {
+    accessToken = saved;
+    showUserInfo();
+  }
+  // tokenClient初期化
+  if(window.google) initTokenClient();
+  else document.querySelector('script[src*="gsi"]').addEventListener('load', initTokenClient);
+});
+
+function initTokenClient(){
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: 'https://www.googleapis.com/auth/drive.file',
+    callback: (resp) => {
+      if(resp.access_token){
+        accessToken = resp.access_token;
+        localStorage.setItem('gToken', accessToken);
+        showUserInfo();
+        // ログイン後に自動送信
+        if(pendingSubmit){ pendingSubmit=false; doSubmit(); }
+      }
+    }
+  });
+}
+
+let pendingSubmit = false;
+
+function doLogin(){
+  pendingSubmit = true;
+  tokenClient.requestAccessToken();
+}
+
+function doLogout(){
+  accessToken = null;
+  localStorage.removeItem('gToken');
+  document.getElementById('user-info').classList.remove('show');
+  document.getElementById('login-banner').classList.remove('show');
+}
+
+function showUserInfo(){
+  // ユーザー情報をAPIで取得
+  fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers:{ Authorization:'Bearer '+accessToken }
+  }).then(r=>r.json()).then(u=>{
+    if(u.error){ doLogout(); return; }
+    document.getElementById('user-avatar').src = u.picture||'';
+    document.getElementById('user-name').textContent = u.name||u.email||'';
+    document.getElementById('user-info').classList.add('show');
+    document.getElementById('login-banner').classList.remove('show');
+  }).catch(()=>doLogout());
+}
+
+// ── UI操作 ──
 function pickStore(s){
   store=s;
   document.getElementById('cn').className='s-card'+(s==='nickou'?' nickou':'');
@@ -215,70 +304,102 @@ function buildFileName(orig,i,who){
   const ext=orig.split('.').pop();
   return `${ymd}_${sp}_${tp}_${sanitizeName(who)}_${String(i+1).padStart(2,'0')}.${ext}`;
 }
-
-// ファイルをbase64に変換
-function toBase64(file){
-  return new Promise((res,rej)=>{
-    const r=new FileReader();
-    r.onload=()=>res(r.result.split(',')[1]);
-    r.onerror=rej;
-    r.readAsDataURL(file);
-  });
-}
-
-// プログレス更新
 function setProgress(pct,msg){
   document.getElementById('progress-fill').style.width=pct+'%';
   document.getElementById('progress-msg').textContent=msg;
 }
 
+// ── Drive APIでファイルをアップロード ──
+async function uploadToDrive(file, fileName, folderId){
+  const meta = JSON.stringify({name:fileName, parents:[folderId]});
+  const form = new FormData();
+  form.append('metadata', new Blob([meta],{type:'application/json'}));
+  form.append('file', file);
+  const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+    method:'POST',
+    headers:{ Authorization:'Bearer '+accessToken },
+    body: form
+  });
+  if(!res.ok){
+    const err = await res.json();
+    throw new Error(err.error?.message||'Drive upload failed');
+  }
+  return await res.json();
+}
+
+// ── 日付フォルダを取得or作成 ──
+async function getOrCreateFolder(parentId, folderName){
+  // 既存フォルダを検索
+  const q = encodeURIComponent(`name='${folderName}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}`,{
+    headers:{ Authorization:'Bearer '+accessToken }
+  });
+  const data = await res.json();
+  if(data.files && data.files.length > 0) return data.files[0].id;
+
+  // なければ作成
+  const cr = await fetch('https://www.googleapis.com/drive/v3/files',{
+    method:'POST',
+    headers:{ Authorization:'Bearer '+accessToken, 'Content-Type':'application/json' },
+    body: JSON.stringify({ name:folderName, mimeType:'application/vnd.google-apps.folder', parents:[parentId] })
+  });
+  const folder = await cr.json();
+  return folder.id;
+}
+
+// ── メイン送信処理 ──
 async function doSubmit(){
-  const who=document.getElementById('who').value.trim();
+  const who = document.getElementById('who').value.trim();
   if(!who){document.getElementById('who-err').style.display='block';document.getElementById('who').scrollIntoView({behavior:'smooth',block:'center'});return;}
-  const gasUrl=localStorage.getItem('gasUrl')||'https://script.google.com/macros/s/AKfycby3QKRHRHPz0d845UoJnPePGvEa_fX3JNrZQrsVfpDgMnGj5FJc51m_BQW2l6GhpuX1/exec';
-  
 
-  const memo=document.getElementById('memo').value.trim();
-  const storeLabel=store==='nickou'?'ラーメンにっこう本店':'お塩浩太郎 東大前店';
-  const now=new Date();
-  const date=now.toLocaleString('ja-JP',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-  const iso=now.toISOString();
-  const renamedFiles=files.map((f,i)=>({file:f,original:f.name,renamed:buildFileName(f.name,i,who)}));
+  // 未ログインならログイン画面を表示
+  if(!accessToken){
+    document.getElementById('login-banner').classList.add('show');
+    document.getElementById('login-banner').scrollIntoView({behavior:'smooth',block:'center'});
+    return;
+  }
 
-  // UI：送信中
+  const memo = document.getElementById('memo').value.trim();
+  const shop = SHOPS[store];
+  const storeLabel = shop.label;
+  const now = new Date();
+  const date = now.toLocaleString('ja-JP',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  const iso = now.toISOString();
+  const renamedFiles = files.map((f,i)=>({file:f, renamed:buildFileName(f.name,i,who)}));
+
   document.getElementById('sbtn').disabled=true;
-  document.getElementById('sbtn').textContent='📡 アップロード中...';
   document.getElementById('progress-wrap').style.display='block';
-  setProgress(10,'ファイルを準備中...');
+  setProgress(5,'準備中...');
 
   try{
-    // base64変換
-    const fileData=[];
-    for(let i=0;i<renamedFiles.length;i++){
-      setProgress(10+Math.round(i/renamedFiles.length*50), `変換中 ${i+1}/${renamedFiles.length}...`);
-      const b64=await toBase64(renamedFiles[i].file);
-      fileData.push({name:renamedFiles[i].renamed,type:renamedFiles[i].file.type,data:b64});
+    // 日付フォルダを取得or作成
+    const dateStr = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+    setProgress(10,'フォルダを確認中...');
+    const subFolderId = await getOrCreateFolder(shop.folderId, dateStr);
+
+    // ファイルを1つずつアップロード
+    for(let i=0; i<renamedFiles.length; i++){
+      setProgress(10+Math.round((i/renamedFiles.length)*75), `アップロード中 ${i+1}/${renamedFiles.length}...`);
+      await uploadToDrive(renamedFiles[i].file, renamedFiles[i].renamed, subFolderId);
     }
 
-    setProgress(65,'Driveにアップロード中...');
+    setProgress(90,'記録中...');
 
-    // GASに送信（no-cors方式）
-    await fetch(gasUrl,{
-      method:'POST',
-      mode:'no-cors',
+    // GASにスプレッドシート記録のみ依頼（no-cors）
+    fetch(GAS_URL,{
+      method:'POST', mode:'no-cors',
       body:JSON.stringify({
-        timestamp:iso,store,storeLabel,who,
-        tags:tags.join(','),memo,
-        fileCount:files.length,
-        files:fileData
+        action:'record', timestamp:iso, store, storeLabel, who,
+        tags:tags.join(','), memo,
+        files:renamedFiles.map(f=>f.renamed).join(','),
+        fileCount:files.length
       })
     });
 
     setProgress(100,'完了！');
 
-    // ローカル履歴保存
-    const rec={id:Date.now(),store,storeLabel,who,tags:[...tags],
-      files:renamedFiles.map(f=>({name:f.renamed})),memo,date};
+    // ローカル履歴
+    const rec={id:Date.now(),store,storeLabel,who,tags:[...tags],files:renamedFiles.map(f=>({name:f.renamed})),memo,date};
     const hist=JSON.parse(localStorage.getItem('h')||'[]');
     hist.unshift(rec);localStorage.setItem('h',JSON.stringify(hist.slice(0,30)));
 
@@ -291,14 +412,19 @@ async function doSubmit(){
       <div class="drow"><span class="dkey">ファイル</span><span class="dval">${fileRows}</span></div>
       ${memo?`<div class="drow"><span class="dkey">メモ</span><span class="dval">${memo}</span></div>`:''}
     `;
-    document.getElementById('drive-link').style.display='none';
     const copyText=`【${storeLabel}】${date}\n担当：${who}\nタグ：${tags.join(' ')||'なし'}\nファイル：${renamedFiles.map(f=>f.renamed).join(', ')}\nメモ：${memo||'なし'}`;
     document.getElementById('copy-btn').dataset.copy=copyText;
     document.getElementById('progress-wrap').style.display='none';
     document.getElementById('done').classList.add('on');
     document.getElementById('sbtn').style.display='none';
     document.getElementById('done').scrollIntoView({behavior:'smooth',block:'start'});
+
   }catch(err){
+    // トークン期限切れの場合は再ログイン
+    if(err.message.includes('401')||err.message.includes('invalid')){
+      doLogout();
+      document.getElementById('login-banner').classList.add('show');
+    }
     document.getElementById('progress-wrap').style.display='none';
     document.getElementById('sbtn').disabled=false;
     syncBtn();
@@ -320,6 +446,7 @@ function reset(){
   document.getElementById('memo').value='';document.getElementById('thumbs').innerHTML='';
   document.getElementById('done').classList.remove('on');document.getElementById('sbtn').style.display='';
   document.getElementById('progress-wrap').style.display='none';
+  document.getElementById('login-banner').classList.remove('show');
   const dz=document.getElementById('dz');
   dz.querySelector('.dz-ico').textContent='📱';dz.querySelector('.dz-main').textContent='タップして選択';dz.querySelector('.dz-sub').textContent='写真・動画・複数選択OK';
   syncBtn();window.scrollTo({top:0,behavior:'smooth'});
@@ -332,8 +459,6 @@ function openHist(){
   document.getElementById('pg-upload').classList.remove('on');document.getElementById('pg-history').classList.add('on');window.scrollTo({top:0});
 }
 function closeHist(){document.getElementById('pg-history').classList.remove('on');document.getElementById('pg-upload').classList.add('on');}
-window.addEventListener('DOMContentLoaded',()=>{
-});
 </script>
 </body>
 </html>
