@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>管理者ダッシュボード</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=Oswald:wght@700&display=swap');
+:root{--bg:#0d0d0d;--surface:#171717;--card:#1f1f1f;--border:#2c2c2c;--gold:#d49a28;--gold-bg:rgba(212,154,40,0.12);--red:#d13535;--red-bg:rgba(209,53,53,0.12);--green:#4caf50;--text:#eeeeee;--muted:#5a5a5a;--r:14px;}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased;}
+
+/* LOGIN */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
+.login-box{background:var(--surface);border:1.5px solid var(--border);border-radius:20px;padding:36px 28px;width:100%;max-width:360px;}
+.login-logo{text-align:center;font-size:40px;margin-bottom:8px;}
+.login-title{text-align:center;font-family:'Oswald',sans-serif;font-size:22px;letter-spacing:2px;margin-bottom:4px;}
+.login-sub{text-align:center;font-size:11px;color:var(--muted);margin-bottom:28px;}
+.pw-in{width:100%;background:var(--card);border:1.5px solid var(--border);border-radius:var(--r);color:var(--text);font-family:'Noto Sans JP',sans-serif;font-size:16px;padding:15px 16px;outline:none;margin-bottom:12px;transition:border-color .2s;}
+.pw-in:focus{border-color:#444;}
+.login-btn{width:100%;padding:16px;border-radius:var(--r);border:none;background:var(--gold);color:#000;font-family:'Noto Sans JP',sans-serif;font-size:15px;font-weight:900;cursor:pointer;}
+.login-err{color:var(--red);font-size:12px;text-align:center;margin-top:8px;display:none;}
+
+/* DASHBOARD */
+.dash{display:none;padding-bottom:48px;}
+.dash-hdr{display:flex;align-items:center;gap:10px;padding:16px 18px 14px;border-bottom:1px solid var(--border);background:var(--bg);position:sticky;top:0;z-index:50;}
+.dash-title{font-family:'Oswald',sans-serif;font-size:18px;letter-spacing:2px;}
+.dash-sub{font-size:10px;color:var(--muted);margin-top:2px;}
+.logout-btn{margin-left:auto;background:var(--card);border:1px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;font-family:'Noto Sans JP',sans-serif;padding:7px 13px;border-radius:100px;cursor:pointer;}
+.refresh-btn{background:var(--gold);border:none;color:#000;font-size:12px;font-weight:700;font-family:'Noto Sans JP',sans-serif;padding:7px 13px;border-radius:100px;cursor:pointer;}
+
+/* GAS設定 */
+.gas-setup{margin:16px 18px 0;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px;}
+.gas-setup summary{font-size:12px;color:var(--muted);cursor:pointer;font-weight:700;}
+.gs-in{width:100%;background:var(--card);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-family:'Noto Sans JP',sans-serif;font-size:12px;padding:10px 12px;outline:none;margin-top:8px;}
+.gs-save{width:100%;padding:10px;margin-top:8px;border-radius:10px;border:none;background:var(--gold);color:#000;font-family:'Noto Sans JP',sans-serif;font-size:13px;font-weight:700;cursor:pointer;}
+.gs-note{font-size:10px;color:var(--green);margin-top:5px;display:none;}
+
+/* LOADING */
+.loading{text-align:center;padding:48px 20px;color:var(--muted);font-size:13px;}
+
+/* KPI CARDS */
+.kpi-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:16px 18px 0;}
+.kpi{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 14px;}
+.kpi-num{font-family:'Oswald',sans-serif;font-size:32px;line-height:1;margin-bottom:4px;}
+.kpi-lbl{font-size:10px;color:var(--muted);font-weight:700;letter-spacing:1px;}
+.kpi.gold .kpi-num{color:var(--gold);}
+.kpi.red  .kpi-num{color:var(--red);}
+.kpi.grn  .kpi-num{color:var(--green);}
+
+/* SECTIONS */
+.sec{padding:20px 18px 0;}
+.sec-title{font-size:12px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:14px;}
+.chart-wrap{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px;}
+
+/* RANKING */
+.rank-item{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);}
+.rank-item:last-child{border-bottom:none;}
+.rank-medal{font-size:20px;width:28px;text-align:center;flex-shrink:0;}
+.rank-name{font-size:14px;font-weight:700;flex:1;}
+.rank-count{font-size:13px;color:var(--gold);font-weight:700;}
+.rank-bar-wrap{width:100%;height:4px;background:var(--border);border-radius:4px;margin-top:4px;}
+.rank-bar{height:100%;border-radius:4px;background:var(--gold);transition:width .6s ease;}
+
+/* HISTORY TABLE */
+.hist-table{width:100%;border-collapse:collapse;}
+.hist-table th{font-size:10px;color:var(--muted);font-weight:700;letter-spacing:1px;padding:8px 4px;text-align:left;border-bottom:1px solid var(--border);}
+.hist-table td{font-size:12px;padding:10px 4px;border-bottom:1px solid var(--border);vertical-align:top;}
+.store-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;}
+.dot-g{background:var(--gold);}.dot-r{background:var(--red);}
+.tag-list{display:flex;flex-wrap:wrap;gap:3px;margin-top:3px;}
+.mini-tag{font-size:9px;background:var(--card);padding:1px 6px;border-radius:100px;color:var(--muted);}
+.empty-msg{text-align:center;padding:40px 20px;color:var(--muted);font-size:13px;}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-wrap" id="login-wrap">
+  <div class="login-box">
+    <div class="login-logo">🔐</div>
+    <div class="login-title">ADMIN</div>
+    <div class="login-sub">管理者専用ダッシュボード</div>
+    <input class="pw-in" type="password" id="pw-in" placeholder="パスワードを入力"
+      onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-btn" onclick="doLogin()">ログイン</button>
+    <div class="login-err" id="login-err">パスワードが違います</div>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div class="dash" id="dash">
+  <div class="dash-hdr">
+    <div>
+      <div class="dash-title">DASHBOARD</div>
+      <div class="dash-sub" id="last-updated">読み込み中...</div>
+    </div>
+    <button class="refresh-btn" onclick="loadData()">🔄 更新</button>
+    <button class="logout-btn" onclick="doLogout()">ログアウト</button>
+  </div>
+
+  <!-- GAS設定 -->
+  <details class="gas-setup">
+    <summary>⚙️ GAS URLを設定する（初回のみ）</summary>
+    <input class="gs-in" id="admin-gas-url" placeholder="https://script.google.com/macros/s/.../exec">
+    <button class="gs-save" onclick="saveGasUrl()">保存して読み込む</button>
+    <p class="gs-note" id="gs-note">✅ 保存しました</p>
+  </details>
+
+  <div id="dash-content">
+    <div class="loading">GAS URLを設定してデータを読み込んでください</div>
+  </div>
+</div>
+
+<script>
+// ── パスワード（変更可能）
+const ADMIN_PW = 'nickou2026';
+
+function doLogin(){
+  const pw=document.getElementById('pw-in').value;
+  if(pw===ADMIN_PW){
+    document.getElementById('login-wrap').style.display='none';
+    document.getElementById('dash').style.display='block';
+    document.getElementById('admin-gas-url').value=localStorage.getItem('adminGasUrl')||localStorage.getItem('gasUrl')||'';
+    loadData();
+  } else {
+    document.getElementById('login-err').style.display='block';
+    document.getElementById('pw-in').value='';
+  }
+}
+function doLogout(){
+  document.getElementById('login-wrap').style.display='flex';
+  document.getElementById('dash').style.display='none';
+  document.getElementById('pw-in').value='';
+  document.getElementById('login-err').style.display='none';
+}
+function saveGasUrl(){
+  const url=document.getElementById('admin-gas-url').value.trim();
+  localStorage.setItem('adminGasUrl',url);
+  localStorage.setItem('gasUrl',url);
+  document.getElementById('gs-note').style.display='block';
+  setTimeout(()=>document.getElementById('gs-note').style.display='none',2000);
+  loadData();
+}
+
+async function loadData(){
+  const gasUrl=localStorage.getItem('adminGasUrl')||localStorage.getItem('gasUrl')||'';
+  if(!gasUrl){
+    document.getElementById('dash-content').innerHTML='<div class="loading">⚙️ GAS URLを設定してください</div>';
+    return;
+  }
+  document.getElementById('dash-content').innerHTML='<div class="loading">📡 データを読み込み中...</div>';
+  try{
+    const res=await fetch(gasUrl+'?action=getData');
+    const data=await res.json();
+    renderDash(data);
+    document.getElementById('last-updated').textContent='最終更新: '+new Date().toLocaleTimeString('ja-JP');
+  } catch(e){
+    document.getElementById('dash-content').innerHTML='<div class="loading">❌ 読み込みエラー。GAS URLを確認してください。<br><small style="color:#666">'+e.message+'</small></div>';
+  }
+}
+
+function renderDash(rows){
+  if(!rows||!rows.length){
+    document.getElementById('dash-content').innerHTML='<div class="empty-msg">まだデータがありません</div>';
+    return;
+  }
+
+  // 集計
+  const totalFiles=rows.reduce((s,r)=>s+(parseInt(r.fileCount)||0),0);
+  const whoCount={},storeCount={nickou:0,osio:0},tagCount={};
+  rows.forEach(r=>{
+    whoCount[r.who]=(whoCount[r.who]||0)+1;
+    if(r.store==='nickou')storeCount.nickou++; else storeCount.osio++;
+    (r.tags||'').split(',').forEach(t=>{t=t.trim();if(t)tagCount[t]=(tagCount[t]||0)+1;});
+  });
+  const maxWho=Math.max(...Object.values(whoCount));
+  const whoRank=Object.entries(whoCount).sort((a,b)=>b[1]-a[1]);
+  const tagRank=Object.entries(tagCount).sort((a,b)=>b[1]-a[1]);
+
+  const medals=['🥇','🥈','🥉'];
+
+  const html=`
+    <!-- KPI -->
+    <div class="kpi-row">
+      <div class="kpi gold"><div class="kpi-num">${rows.length}</div><div class="kpi-lbl">総アップ数</div></div>
+      <div class="kpi grn"><div class="kpi-num">${totalFiles}</div><div class="kpi-lbl">総ファイル数</div></div>
+      <div class="kpi"><div class="kpi-num" style="color:var(--gold)">${storeCount.nickou}</div><div class="kpi-lbl">にっこう</div></div>
+      <div class="kpi red"><div class="kpi-num">${storeCount.osio}</div><div class="kpi-lbl">お塩浩太郎</div></div>
+    </div>
+
+    <!-- 撮影者ランキング -->
+    <div class="sec">
+      <div class="sec-title">🏆 撮影者ランキング</div>
+      <div class="chart-wrap">
+        ${whoRank.map((e,i)=>`
+          <div class="rank-item">
+            <span class="rank-medal">${medals[i]||'　'}</span>
+            <div style="flex:1">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span class="rank-name">${e[0]}</span>
+                <span class="rank-count">${e[1]}回</span>
+              </div>
+              <div class="rank-bar-wrap"><div class="rank-bar" style="width:${Math.round(e[1]/maxWho*100)}%"></div></div>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- 店舗別グラフ -->
+    <div class="sec">
+      <div class="sec-title">🏮 店舗別投稿数</div>
+      <div class="chart-wrap"><canvas id="storeChart" height="160"></canvas></div>
+    </div>
+
+    <!-- タグ別グラフ -->
+    <div class="sec">
+      <div class="sec-title">🏷 タグ別集計</div>
+      <div class="chart-wrap"><canvas id="tagChart" height="200"></canvas></div>
+    </div>
+
+  `;
+  document.getElementById('dash-content').innerHTML=html;
+
+  // 店舗グラフ
+  new Chart(document.getElementById('storeChart'),{
+    type:'bar',
+    data:{
+      labels:['ラーメンにっこう','お塩浩太郎'],
+      datasets:[{data:[storeCount.nickou,storeCount.osio],backgroundColor:['rgba(212,154,40,0.7)','rgba(209,53,53,0.7)'],borderColor:['#d49a28','#d13535'],borderWidth:2,borderRadius:8}]
+    },
+    options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{color:'#666'},grid:{color:'#222'}},x:{ticks:{color:'#aaa'},grid:{display:false}}}}
+  });
+
+  // タググラフ
+  new Chart(document.getElementById('tagChart'),{
+    type:'bar',
+    data:{
+      labels:tagRank.map(e=>e[0]),
+      datasets:[{data:tagRank.map(e=>e[1]),backgroundColor:'rgba(212,154,40,0.6)',borderColor:'#d49a28',borderWidth:2,borderRadius:6}]
+    },
+    options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{color:'#666'},grid:{color:'#222'}},y:{ticks:{color:'#aaa'},grid:{display:false}}}}
+  });
+}
+</script>
+</body>
+</html>
