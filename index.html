@@ -96,7 +96,25 @@ textarea.memo:focus{border-color:#444;}textarea.memo::placeholder{color:var(--mu
 <!-- Google Identity Services -->
 <script src="https://accounts.google.com/gsi/client" async></script>
 
-<div class="page on" id="pg-upload">
+<div class="page on" id="pg-login">
+  <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;">
+    <div style="font-size:56px;margin-bottom:16px;">🍜</div>
+    <div style="font-family:'Oswald',sans-serif;font-size:24px;letter-spacing:3px;margin-bottom:6px;">SNS UPLOADER</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:48px;">にっこう / お塩浩太郎</div>
+    <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:24px;width:100%;max-width:340px;margin-bottom:24px;">
+      <div style="font-size:13px;line-height:1.8;color:var(--muted);margin-bottom:20px;">
+        📸 写真・動画をDriveに<br>自動アップロードします。<br><br>
+        初回のみGoogleログインが必要です。
+      </div>
+      <button onclick="doLogin()" style="width:100%;padding:16px;border-radius:var(--r);border:none;background:var(--gold);color:#000;font-family:'Noto Sans JP',sans-serif;font-size:15px;font-weight:900;cursor:pointer;">
+        🔑 Googleでログイン
+      </button>
+    </div>
+    <div style="font-size:11px;color:var(--muted);">ログイン情報はこのデバイスにのみ保存されます</div>
+  </div>
+</div>
+
+<div class="page" id="pg-upload">
   <div class="hdr">
     <div class="hdr-icon">🍜</div>
     <div><div class="hdr-name">SNS UPLOADER</div><div class="hdr-sub">にっこう / お塩浩太郎</div></div>
@@ -201,11 +219,10 @@ const SHOPS = {
 const TAG_PREFIX={'仕込み':'shikomi','メニュー':'menu','カウントダウン':'countdown','店内':'interior','行列':'queue','完売':'sold-out','限定':'limited','スタッフ':'staff','世界展開':'world','その他':'other'};
 const STORE_PREFIX={nickou:'nikkou',osio:'osio'};
 
-let store=null, tags=[], files=[], accessToken=null, tokenClient=null;
+let store=null, tags=[], files=[], accessToken=null, tokenClient=null, tokenExpiry=0;
 
 // ── Google Identity Services 初期化 ──
 window.addEventListener('load', () => {
-  // tokenClient初期化
   if(window.google) initTokenClient();
   else document.querySelector('script[src*="gsi"]').addEventListener('load', initTokenClient);
 });
@@ -215,11 +232,20 @@ function initTokenClient(){
     client_id: CLIENT_ID,
     scope: 'https://www.googleapis.com/auth/drive.file',
     callback: (resp) => {
+      if(resp.error){ 
+        alert('ログインエラー: ' + resp.error);
+        return;
+      }
       if(resp.access_token){
         accessToken = resp.access_token;
+        // トークン有効期限（1時間）を記録
+        tokenExpiry = Date.now() + (resp.expires_in||3600) * 1000;
         showUserInfo();
         // ログイン後に自動送信
-        if(pendingSubmit){ pendingSubmit=false; doSubmit(); }
+        if(pendingSubmit){ 
+          pendingSubmit=false; 
+          setTimeout(()=>doSubmit(), 500);
+        }
       }
     }
   });
@@ -228,7 +254,6 @@ function initTokenClient(){
 let pendingSubmit = false;
 
 function doLogin(){
-  pendingSubmit = true;
   tokenClient.requestAccessToken();
 }
 
@@ -239,16 +264,12 @@ function doLogout(){
 }
 
 function showUserInfo(){
-  // ユーザー情報をAPIで取得
-  fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-    headers:{ Authorization:'Bearer '+accessToken }
-  }).then(r=>r.json()).then(u=>{
-    if(u.error){ doLogout(); return; }
-    document.getElementById('user-avatar').src = u.picture||'';
-    document.getElementById('user-name').textContent = u.name||u.email||'';
-    document.getElementById('user-info').classList.add('show');
-    document.getElementById('login-banner').classList.remove('show');
-  }).catch(()=>doLogout());
+  document.getElementById('user-name').textContent = 'ログイン済み ✓';
+  document.getElementById('user-info').classList.add('show');
+  document.getElementById('login-banner').classList.remove('show');
+  // ログイン画面→メイン画面へ切り替え
+  document.getElementById('pg-login').classList.remove('on');
+  document.getElementById('pg-upload').classList.add('on');
 }
 
 // ── UI操作 ──
@@ -344,10 +365,11 @@ async function doSubmit(){
   const who = document.getElementById('who').value.trim();
   if(!who){document.getElementById('who-err').style.display='block';document.getElementById('who').scrollIntoView({behavior:'smooth',block:'center'});return;}
 
-  // 未ログインならログイン画面を表示
-  if(!accessToken){
-    document.getElementById('login-banner').classList.add('show');
-    document.getElementById('login-banner').scrollIntoView({behavior:'smooth',block:'center'});
+  // 未ログイン or トークン期限切れならログイン画面へ
+  if(!accessToken || Date.now() > tokenExpiry - 60000){
+    accessToken = null;
+    document.getElementById('pg-upload').classList.remove('on');
+    document.getElementById('pg-login').classList.add('on');
     return;
   }
 
