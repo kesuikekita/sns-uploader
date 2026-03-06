@@ -239,16 +239,18 @@ async function doSubmit(){
   const hist=JSON.parse(localStorage.getItem('h')||'[]');
   hist.unshift(rec);localStorage.setItem('h',JSON.stringify(hist.slice(0,30)));
 
-  // GAS送信
+  // GAS送信（GETパラメータ方式・302回避）
   const gasUrl=localStorage.getItem('gasUrl')||'';
   if(gasUrl){
     document.getElementById('sending-msg').style.display='block';
     try{
-      await fetch(gasUrl,{method:'POST',mode:'no-cors',body:JSON.stringify({
-        timestamp:iso,store,storeLabel,who,tags:tags.join(','),
-        files:renamedFiles.map(f=>f.renamed).join(','),memo,
-        fileCount:files.length
-      })});
+      const params=new URLSearchParams({
+        action:'record',timestamp:iso,store,storeLabel,who,
+        tags:tags.join(','),
+        files:renamedFiles.map(f=>f.renamed).join(','),
+        memo,fileCount:files.length
+      });
+      await fetch(gasUrl+'?'+params.toString(),{method:'GET',mode:'no-cors'});
     }catch(e){console.log('GAS送信エラー',e);}
     document.getElementById('sending-msg').style.display='none';
   }
