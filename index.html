@@ -205,12 +205,6 @@ let store=null, tags=[], files=[], accessToken=null, tokenClient=null;
 
 // ── Google Identity Services 初期化 ──
 window.addEventListener('load', () => {
-  // 保存済みトークンを確認
-  const saved = localStorage.getItem('gToken');
-  if(saved) {
-    accessToken = saved;
-    showUserInfo();
-  }
   // tokenClient初期化
   if(window.google) initTokenClient();
   else document.querySelector('script[src*="gsi"]').addEventListener('load', initTokenClient);
@@ -223,7 +217,6 @@ function initTokenClient(){
     callback: (resp) => {
       if(resp.access_token){
         accessToken = resp.access_token;
-        localStorage.setItem('gToken', accessToken);
         showUserInfo();
         // ログイン後に自動送信
         if(pendingSubmit){ pendingSubmit=false; doSubmit(); }
@@ -241,7 +234,6 @@ function doLogin(){
 
 function doLogout(){
   accessToken = null;
-  localStorage.removeItem('gToken');
   document.getElementById('user-info').classList.remove('show');
   document.getElementById('login-banner').classList.remove('show');
 }
